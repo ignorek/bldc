@@ -205,3 +205,47 @@ BISSC_config_t encoder_cfg_bissc = {
 		{0.0, 0, 0.0, 0, 0.0, 0, 0, {0}}
 #endif
 };
+
+
+/* 
+typedef struct {
+	SPIDriver *spi_dev;
+	SPIConfig hw_spi_cfg;
+	uint8_t spi_af;
+	stm32_gpio_t *nss_gpio;
+	int nss_pin;
+	stm32_gpio_t *sck_gpio;
+	int sck_pin;
+	stm32_gpio_t *mosi_gpio;
+	int mosi_pin;
+	stm32_gpio_t *miso_gpio;
+	int miso_pin;
+	AS5x47U_state state;
+} AS5x47U_config_t;
+*/
+
+// Spi Handler for MA782
+void compute_ma782_callback(SPIDriver *pspi);
+ma782_config_t encoder_cfg_ma782 = {
+#ifdef HW_SPI_DEV
+		&HW_SPI_DEV, // spi_dev
+		{//HARDWARE SPI CONFIG
+				compute_ma782_callback, HW_SPI_PORT_NSS, HW_SPI_PIN_NSS, SPI_BaudRatePrescaler_256 |
+				/*SPI_CR1_CPHA* |*/  SPI_CR1_CPHA | SPI_DATASIZE_8BIT , 
+		},
+		HW_SPI_GPIO_AF,
+		/*NSS*/HW_SPI_PORT_NSS, HW_SPI_PIN_NSS,
+		/*SCK*/HW_SPI_PORT_SCK, HW_SPI_PIN_SCK,
+		/*MOSI*/HW_SPI_PORT_MOSI, HW_SPI_PIN_MOSI,
+		/*MISO*/HW_SPI_PORT_MISO, HW_SPI_PIN_MISO,
+#else
+		0,
+		{0},
+		0,
+		0, 0,
+		0, 0,
+		0, 0,
+		0, 0,
+#endif
+		{0}, // State
+};

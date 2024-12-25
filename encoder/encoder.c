@@ -253,6 +253,20 @@ bool encoder_init(volatile mc_configuration *conf) {
 		res = true;
 	} break;
 
+	case SENSOR_PORT_MODE_MA782: {
+		SENSOR_PORT_3V3();
+
+		if (!enc_ma782_init(&encoder_cfg_ma782)) {
+			m_encoder_type_now = ENCODER_TYPE_NONE;
+			return false;
+		}
+
+		m_encoder_type_now = ENCODER_TYPE_MA782;
+		timer_start(routine_rate_10k);
+
+		res = true;
+	} break;
+
 	case SENSOR_PORT_MODE_CUSTOM_ENCODER:
 		m_encoder_type_now = ENCODER_TYPE_CUSTOM;
 		break;
@@ -328,7 +342,10 @@ void encoder_deinit(void) {
 		enc_as5x47u_deinit(&encoder_cfg_as5x47u);
 	} else if (m_encoder_type_now == ENCODER_TYPE_BISSC) {
 		enc_bissc_deinit(&encoder_cfg_bissc);
+	} else if (m_encoder_type_now == ENCODER_TYPE_MA782) {
+		enc_ma782_deinit(&encoder_cfg_ma782);
 	}
+	
 
 	m_encoder_type_now = ENCODER_TYPE_NONE;
 }
@@ -376,6 +393,8 @@ float encoder_read_deg(void) {
 		return AS5x47U_LAST_ANGLE(&encoder_cfg_as5x47u);
 	} else if (m_encoder_type_now == ENCODER_TYPE_BISSC) {
 		return BISSC_LAST_ANGLE(&encoder_cfg_bissc);
+	} else if (m_encoder_type_now == ENCODER_TYPE_BISSC) {
+		return MA782_LAST_ANGLE(&encoder_cfg_ma782);
 	} else if (m_encoder_type_now == ENCODER_TYPE_CUSTOM) {
 		if (m_enc_custom_read_deg) {
 			return m_enc_custom_read_deg();
@@ -476,6 +495,9 @@ float encoder_get_error_rate(void) {
 		if (encoder_cfg_bissc.state.spi_data_error_rate > res) {
 			res = encoder_cfg_bissc.state.spi_data_error_rate;
 		}
+		break;
+	case ENCODER_TYPE_MA782:
+		res = encoder_cfg_ma782.state.spi_error_rate;
 		break;
 	default:
 		break;
@@ -772,6 +794,10 @@ static void terminal_encoder(int argc, const char **argv) {
 		}
 		break;
 
+	case SENSOR_PORT_MODE_MA782:
+		enc_ma782_print_status(&encoder_cfg_ma782);
+		break;
+
 	default:
 		commands_printf("No encoder debug info available.");
 		break;
@@ -820,6 +846,10 @@ static THD_FUNCTION(routine_thread, arg) {
 
 		case ENCODER_TYPE_BISSC:
 			enc_bissc_routine(&encoder_cfg_bissc);
+			break;
+
+		case ENCODER_TYPE_MA782:
+			enc_ma782_routine(&encoder_cfg_ma782);
 			break;
 
 		default:
