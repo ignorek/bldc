@@ -179,8 +179,8 @@ BISSC_config_t encoder_cfg_bissc = {
 #ifdef HW_SPI_DEV
 		&HW_SPI_DEV, // spi_dev
 		{//HARDWARE SPI CONFIG
-				//NULL, HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3, 
-				&compute_bissc_callback, HW_SPI_PORT_NSS, HW_SPI_PIN_NSS, 
+				//NULL, HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3,
+				&compute_bissc_callback, HW_SPI_PORT_NSS, HW_SPI_PIN_NSS,
 				SPI_BaudRatePrescaler_32 | SPI_CR1_CPOL | SPI_CR1_CPHA
 		},
 
@@ -207,7 +207,7 @@ BISSC_config_t encoder_cfg_bissc = {
 };
 
 
-/* 
+/*
 typedef struct {
 	SPIDriver *spi_dev;
 	SPIConfig hw_spi_cfg;
@@ -230,14 +230,15 @@ ma782_config_t encoder_cfg_ma782 = {
 #ifdef HW_SPI_DEV
 		&HW_SPI_DEV, // spi_dev
 		{//HARDWARE SPI CONFIG
-				compute_ma782_callback, HW_SPI_PORT_NSS, HW_SPI_PIN_NSS, SPI_BaudRatePrescaler_256 |
-				/*SPI_CR1_CPHA* |*/  SPI_CR1_CPHA | SPI_DATASIZE_8BIT , 
+				compute_ma782_callback, HW_SPI_PORT_NSS, HW_SPI_PIN_NSS, SPI_BaudRatePrescaler_32 |
+				/* SPI_CR1_CPOL * |*/  SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_DATASIZE_8BIT ,
 		},
 		HW_SPI_GPIO_AF,
 		/*NSS*/HW_SPI_PORT_NSS, HW_SPI_PIN_NSS,
 		/*SCK*/HW_SPI_PORT_SCK, HW_SPI_PIN_SCK,
 		/*MOSI*/HW_SPI_PORT_MOSI, HW_SPI_PIN_MOSI,
 		/*MISO*/HW_SPI_PORT_MISO, HW_SPI_PIN_MISO,
+		/*EN*/GPIOC, 5,
 #else
 		0,
 		{0},

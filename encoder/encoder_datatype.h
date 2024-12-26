@@ -120,7 +120,7 @@ typedef enum tle5012_errortypes {
 	INVALID_ANGLE_ERROR    = 0x04,  //!< INVALID_ANGLE_ERROR = NO_GMR_A = 1 or NO_GMR_XY = 1
 	ANGLE_SPEED_ERROR      = 0x08,  //!< ANGLE_SPEED_ERROR = combined error, angular speed calculation wrong
 	CRC_ERROR              = 0xFF   //!< CRC_ERROR = Cyclic Redundancy Check (CRC), which includes the STAT and RESP bits wrong
-} tle5012_errortypes; 
+} tle5012_errortypes;
 
 typedef struct {
 	volatile bool index_found;
@@ -308,18 +308,24 @@ typedef struct {
 typedef enum {
 	MA782_IDLE = 0,
 	MA782_READ_REG_REQ,
+	MA782_READ_ANGLE_REQ,
 } ma782_substate_t;
 
 typedef enum {
 	MA782_CALLBACK_IN_IDLE = 1 << 0,
 	MA782_SPI_ERROR        = 1 << 1,
 	MA782_READ_NOT_IDLE    = 1 << 2,
+	MA782_SPI_NOT_READY    = 1 << 3,
+	MA782_ANGLE_NOT_IDLE   = 1 << 4,
+	MA782_UNKNOWN_STATE    = 1 << 5,
 } ma782_error_t;
 
 typedef struct {
 	float last_enc_angle;
 	uint32_t spi_error_cnt;
 	float spi_error_rate;
+	uint32_t spi_comm_error_cnt;
+	float spi_comm_error_rate;
 	ma782_substate_t substate;
 	unsigned error;
 	unsigned error_count;
@@ -341,6 +347,8 @@ typedef struct {
 	int mosi_pin;
 	stm32_gpio_t *miso_gpio;
 	int miso_pin;
+	stm32_gpio_t *en_gpio;
+	int en_pin;
 	ma782_state_t state;
 } ma782_config_t;
 

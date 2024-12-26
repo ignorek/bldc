@@ -35,7 +35,8 @@
 
 // These rates turn into even multiples of systicks
 typedef enum {
-	routine_rate_1k = 0,
+	routine_rate_1 = 0,
+	routine_rate_1k,
 	routine_rate_2k,
 	routine_rate_5k,
 	routine_rate_10k
@@ -49,6 +50,7 @@ static THD_WORKING_AREA(routine_thread_wa, 256);
 static THD_FUNCTION(routine_thread, arg);
 
 // Private functions
+static void terminal_debug(int argc, const char **argv);
 static void terminal_encoder(int argc, const char **argv);
 static void terminal_encoder_clear_errors(int argc, const char **argv);
 static void terminal_encoder_clear_multiturn(int argc, const char **argv);
@@ -150,7 +152,7 @@ bool encoder_init(volatile mc_configuration *conf) {
 				HW_SPI_PORT_MOSI, HW_SPI_PIN_MOSI, // miso (shared dat line)
 				{{NULL, NULL}, NULL, NULL} // Mutex
 		};
-		encoder_cfg_tle5012.sw_spi = sw_ssc;	
+		encoder_cfg_tle5012.sw_spi = sw_ssc;
 
 		if (!enc_tle5012_init_sw_ssc(&encoder_cfg_tle5012)) {
 			m_encoder_type_now = ENCODER_TYPE_NONE;
@@ -262,7 +264,7 @@ bool encoder_init(volatile mc_configuration *conf) {
 		}
 
 		m_encoder_type_now = ENCODER_TYPE_MA782;
-		timer_start(routine_rate_10k);
+		timer_start(routine_rate_1);
 
 		res = true;
 	} break;
@@ -276,6 +278,12 @@ bool encoder_init(volatile mc_configuration *conf) {
 		m_encoder_type_now = ENCODER_TYPE_NONE;
 		break;
 	}
+
+	terminal_register_command_callback(
+		"encdebug",
+		"aaaaaaa.",
+		0,
+		terminal_debug);
 
 	terminal_register_command_callback(
 			"encoder",
@@ -345,7 +353,7 @@ void encoder_deinit(void) {
 	} else if (m_encoder_type_now == ENCODER_TYPE_MA782) {
 		enc_ma782_deinit(&encoder_cfg_ma782);
 	}
-	
+
 
 	m_encoder_type_now = ENCODER_TYPE_NONE;
 }
@@ -393,7 +401,7 @@ float encoder_read_deg(void) {
 		return AS5x47U_LAST_ANGLE(&encoder_cfg_as5x47u);
 	} else if (m_encoder_type_now == ENCODER_TYPE_BISSC) {
 		return BISSC_LAST_ANGLE(&encoder_cfg_bissc);
-	} else if (m_encoder_type_now == ENCODER_TYPE_BISSC) {
+	} else if (m_encoder_type_now == ENCODER_TYPE_MA782) {
 		return MA782_LAST_ANGLE(&encoder_cfg_ma782);
 	} else if (m_encoder_type_now == ENCODER_TYPE_CUSTOM) {
 		if (m_enc_custom_read_deg) {
@@ -541,7 +549,7 @@ void encoder_check_faults(volatile mc_configuration *m_conf, bool is_second_moto
 				mc_interface_fault_stop(FAULT_CODE_ENCODER_NO_MAGNET, is_second_motor, false);
 			}
 			break;
-		
+
 		case SENSOR_PORT_MODE_TLE5012_SSC_HW:
 		case SENSOR_PORT_MODE_TLE5012_SSC_SW:
 			if (encoder_cfg_tle5012.state.spi_error_rate > 0.10) {
@@ -634,6 +642,18 @@ void encoder_tim_isr(void) {
 	// Use thread. Maybe use this one for encoders with a higher rate.
 }
 
+static void terminal_debug(int argc, const char **argv) {
+
+	(void)argc; (void)argv;
+
+	const volatile mc_configuration *mcconf = mc_interface_get_configuration();
+	switch (mcconf->m_sensor_port_mode) {
+		case SENSOR_PORT_MODE_MA782:
+			enc_ma782_debug_cb(&encoder_cfg_ma782);
+			break;
+	}
+}
+
 static void terminal_encoder(int argc, const char **argv) {
 	(void)argc; (void)argv;
 
@@ -642,7 +662,7 @@ static void terminal_encoder(int argc, const char **argv) {
 	switch (mcconf->m_sensor_port_mode) {
 	case SENSOR_PORT_MODE_AS5047_SPI:
 		commands_printf("SPI encoder value: %d, errors: %d, error rate: %.3f %%",
-				encoder_cfg_as504x.state.spi_val, 
+				encoder_cfg_as504x.state.spi_val,
 				encoder_cfg_as504x.state.spi_communication_error_count,
 				(double)(encoder_cfg_as504x.state.spi_error_rate * 100.0));
 
@@ -861,6 +881,7 @@ static THD_FUNCTION(routine_thread, arg) {
 		case routine_rate_2k: chThdSleep(CH_CFG_ST_FREQUENCY / 2000); break;
 		case routine_rate_5k: chThdSleep(CH_CFG_ST_FREQUENCY / 5000); break;
 		case routine_rate_10k: chThdSleep(CH_CFG_ST_FREQUENCY / 10000); break;
+		case routine_rate_1: chThdSleep(CH_CFG_ST_FREQUENCY / 1); break;
 		default: chThdSleep(5);
 		}
 	}
