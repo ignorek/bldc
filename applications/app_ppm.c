@@ -31,7 +31,14 @@
 #include "utils_math.h"
 #include "utils_sys.h"
 #include "comm_can.h"
+#include "commands.h"
+#include "encoder.h"
+#include "mcpwm_foc.h"
+#include "mc_interface.h"
 #include <math.h>
+
+
+#define PPM_THREAD_TIMEOUT_MS 2
 
 // Settings
 #define MAX_CAN_AGE						0.1
@@ -39,9 +46,11 @@
 
 // Threads
 static THD_FUNCTION(ppm_thread, arg);
-static THD_WORKING_AREA(ppm_thread_wa, 512);
+static THD_WORKING_AREA(ppm_thread_wa, 1024);
 static thread_t *ppm_tp;
 static volatile bool ppm_rx = false;
+
+
 
 // Private functions
 static void servodec_func(void);
@@ -55,7 +64,16 @@ static float input_val = 0.0;
 static volatile float direction_hyst = 0;
 static volatile bool ppm_detached = false;
 static volatile float ppm_override = 0.0;
+static unsigned ctr = 0;
 
+
+#define EXPERIMENT_MS 2000
+#define NO_EXPERIMENT_PLOTS 1
+#define EXPERIMENT_SAMPLES_TOTAL (EXPERIMENT_MS / PPM_THREAD_TIMEOUT_MS)
+
+static float experiment_data[NO_EXPERIMENT_PLOTS] = {0.0f};
+
+#define cond_print(fmt, ...) if (true && ((ctr % 100) == 0)) { commands_printf(fmt, ##__VA_ARGS__); }
 // Private functions
 
 void app_ppm_configure(ppm_config *conf) {
@@ -67,11 +85,6 @@ void app_ppm_configure(ppm_config *conf) {
 	}
 
 	direction_hyst = config.max_erpm_for_dir * 0.20;
-}
-
-void app_ppm_start(void) {
-	stop_now = false;
-	chThdCreateStatic(ppm_thread_wa, sizeof(ppm_thread_wa), NORMALPRIO, ppm_thread, NULL);
 }
 
 void app_ppm_stop(void) {
@@ -106,6 +119,18 @@ static void servodec_func(void) {
 	chSysUnlockFromISR();
 }
 
+static void set_mc_pid_angle(float angle) {
+	cond_print("PPM:setting angle to %f", angle);
+	mc_interface_set_pid_pos(angle);
+}
+
+bool app_ppm_experiment_set_plot(unsigned idx, float y)
+{
+	if (idx >= NO_EXPERIMENT_PLOTS)
+		return;
+	experiment_data[idx] = y;
+}
+
 static THD_FUNCTION(ppm_thread, arg) {
 	(void)arg;
 
@@ -116,8 +141,23 @@ static THD_FUNCTION(ppm_thread, arg) {
 	servodec_init(servodec_func);
 	is_running = true;
 
+	systime_t start_at = chVTGetSystemTimeX();
+	systime_t last_input_change_at = -1;
 	for(;;) {
-		chEvtWaitAnyTimeout((eventmask_t)1, MS2ST(2));
+		#if 0
+		systime_t now = chVTGetSystemTimeX();
+		systime_t next_at = start_at + MS2ST(PPM_THREAD_TIMEOUT_MS);
+		systime_t diff = next_at - now;
+		if (diff < 0) {
+			commands_printf("PPM: overrun %d\n", -ST2MS(diff));
+		}
+
+		chThdSleep(diff);
+		start_at = chVTGetSystemTimeX();
+		#else
+		chEvtWaitAnyTimeout((eventmask_t)1, MS2ST(PPM_THREAD_TIMEOUT_MS));
+		#endif
+		ctr++;
 
 		if (stop_now) {
 			is_running = false;
@@ -163,13 +203,39 @@ static THD_FUNCTION(ppm_thread, arg) {
 			input_val = servo_val;
 			break;
 		}
+
+		static float prev_servo_val = -3.14;
+		static float prev_input = -3.14;
+		static unsigned experiment_sample = 0;
+		if (prev_servo_val == -3.14) {
+			prev_servo_val = servo_val;
+			prev_input = servo_val;
+		} else {
+			experiment_sample++;
+			if (fabs(servo_val - prev_servo_val) > 0.01)
+			{
+				prev_input = prev_servo_val;
+				last_input_change_at = chVTGetSystemTimeX();
+				if (experiment_sample >= EXPERIMENT_SAMPLES_TOTAL) {
+					experiment_sample = 0;
+					start_at = chVTGetSystemTimeX();
+				}
+			}
+
+			prev_servo_val = servo_val;
+		}
+
+		cond_print("PPM: servo_val=%f, servo_ms=%f, ppm_override=%f, ppm_detached=%d",
+							(double)servo_val, (double)servo_ms, (double)ppm_override, (int)ppm_detached);
+
 		// All pins and buttons are still decoded for debugging, even
 		// when output is disabled.
 		if (app_is_output_disabled()) {
+			cond_print("Output disabled");
 			continue;
 		}
 
-		if (timeout_has_timeout() || servodec_get_time_since_update() > timeout_get_timeout_msec()) {
+		if (/*timeout_has_timeout() || servodec_get_time_since_update() > timeout_get_timeout_msec()*/false) {
 			pulses_without_power = 0;
 			servoError = true;
 			float timeoutCurrent = timeout_get_brake_current();
@@ -183,16 +249,24 @@ static THD_FUNCTION(ppm_thread, arg) {
 					}
 				}
 			}
+
+			cond_print("PPM:timeout");
 			continue;
 		} else if (mc_interface_get_fault() != FAULT_CODE_NONE && config.safe_start != SAFE_START_NO_FAULT){
 			pulses_without_power = 0;
 		}
 
 		// Apply deadband
+
+		double servo_val_tmp = servo_val;
 		utils_deadband(&servo_val, config.hyst, 1.0);
+		cond_print("PPM:deadband: %f -> %f", servo_val_tmp, servo_val);
 
 		// Apply throttle curve
+		# if 0
+		servo_val_tmp = servo_val;
 		servo_val = utils_throttle_curve(servo_val, config.throttle_exp, config.throttle_exp_brake, config.throttle_exp_mode);
+		cond_print("PPM:throttle_curve: %f -> %f", servo_val_tmp, servo_val);
 
 		// Apply ramping
 		static systime_t last_time = 0;
@@ -210,8 +284,63 @@ static THD_FUNCTION(ppm_thread, arg) {
 		if (ramp_time > 0.01) {
 			const float ramp_step = dt / ramp_time;
 			utils_step_towards(&servo_val_ramp, servo_val, ramp_step);
+			//cond_print("Ramping: %f -> %f, step: %f", (double)servo_val, (double)servo_val_ramp, (double)ramp_step);
 			servo_val = servo_val_ramp;
 		}
+		#else
+		//servo_val_tmp = servo_val;
+		//servo_val = utils_throttle_curve(servo_val, config.throttle_exp, config.throttle_exp_brake, config.throttle_exp_mode);
+		//cond_print("PPM:throttle_curve: %f -> %f", servo_val_tmp, servo_val);
+
+		// Apply ramping
+		static systime_t last_time = 0;
+		static float prev_servo_val_ramp = 0.0;
+		static systime_t ramp_start = -1;
+		float ramp_time = config.ramp_time_pos;
+
+
+
+		// TODO: Remember what this was about?
+//		if (fabsf(servo_val) > 0.001) {
+//			ramp_time = fminf(config.ramp_time_pos, config.ramp_time_neg);
+//		}
+		const float dt = (float)ST2MS(chVTTimeElapsedSinceX(last_time)) / 1000.0;
+		last_time = chVTGetSystemTimeX();
+
+		if (prev_servo_val_ramp == -3.14) {
+			prev_servo_val_ramp = servo_val;
+		}
+		else if (ramp_time > 0.01) {
+			const float val_delta = fabs(prev_input - servo_val);
+			const float ramp_dt = (float)ST2MS(chVTTimeElapsedSinceX(last_input_change_at)) / 1000.0;
+			if (ramp_dt < ramp_time)
+			{
+				const float T = ramp_time;
+				const float ramp_ratio = ramp_dt / T;
+
+				cond_print("Ramp val_delta=%f ramp_dt=%f ramp_ratio=%f servo_val=%f prev_input=%f",
+					(double)val_delta, (double)ramp_dt, (double)ramp_ratio, (double)servo_val, (double)prev_input);
+
+				float ramp_dir = fabsf(servo_val) > fabsf(prev_servo_val_ramp) ? 1.0 : -1.0;
+				float curve_ratio = utils_throttle_curve(ramp_ratio, config.throttle_exp, config.throttle_exp, config.throttle_exp_mode);
+				if(0)
+				{
+					// linear ramp
+					servo_val = prev_input + (ramp_dir * ramp_ratio * val_delta);
+				}
+				else
+				{
+					// curve ramp
+					servo_val = prev_input + (ramp_dir * curve_ratio * val_delta);
+				}
+
+
+				cond_print("Ramp servo_val=%f curve_ratio=%f", (double)servo_val, (double)curve_ratio);
+			}
+
+			prev_servo_val_ramp = servo_val;
+		}
+		#endif
 
 		float current = 0;
 		bool current_mode = false;
@@ -223,6 +352,8 @@ static THD_FUNCTION(ppm_thread, arg) {
 		float rpm_local = mc_interface_get_rpm();
 		float rpm_lowest = rpm_local;
 		float rpm_highest = rpm_local;
+		float pid_angle = 0.0f;
+		float neutral_position = 0.0f;
 
 		switch (config.ctrl_type) {
 		case PPM_CTRL_TYPE_CURRENT_BRAKE_REV_HYST:
@@ -358,6 +489,8 @@ static THD_FUNCTION(ppm_thread, arg) {
 				pulses_without_power++;
 			}
 
+
+
 			float angle;
 			if (config.ctrl_type == PPM_CTRL_TYPE_PID_POSITION_180) {
 				angle = (servo_val * 180); // -1 <> +1
@@ -365,18 +498,37 @@ static THD_FUNCTION(ppm_thread, arg) {
 				angle = (servo_val * 360); // 0 <> +1
 			}
 			utils_norm_angle(&angle);
+
+			neutral_position = mc_interface_get_configuration()->p_pid_offset;
+			if (fabsf(angle - mc_interface_get_pid_pos_now()) < 4) {
+				pulses_without_power++;
+			}
+
+			cond_print("PPM:pctrl sv=%f np=%f angle=%f ramp_time=%f config.throttle_exp=%f",
+			 (double)servo_val, (double)neutral_position,
+			 (double)angle, (double)ramp_time,
+			 (double)config.throttle_exp);
+
 			if (!(pulses_without_power < MIN_PULSES_WITHOUT_POWER && config.safe_start)) {
-				// try to more intelligently safe start by waiting until 
+				// try to more intelligently safe start by waiting until
 				// ppm "angle" is close to motor angle to go into position mode.
-				if (mc_interface_get_control_mode() != CONTROL_MODE_POS){ 	
-					if (fabsf(angle - mc_interface_get_pid_pos_now()) < 10) {
+				if (mc_interface_get_control_mode() != CONTROL_MODE_POS){
+					if (fabsf(angle - mc_interface_get_pid_pos_now()) < 4) {
 						// enable position control.
-						mc_interface_set_pid_pos(angle);
+						set_mc_pid_angle(angle);
+						pid_angle = angle;
+					}
+					else {
+						cond_print("PPM:no position control");
 					}
 					break;
 				} else {
-					mc_interface_set_pid_pos(angle);
+					set_mc_pid_angle(angle);
+					pid_angle = angle;
 				}
+			} else
+			{
+				cond_print("PPM:no safe start");
 			}
 			break;
 
@@ -561,7 +713,40 @@ static THD_FUNCTION(ppm_thread, arg) {
 			}
 		}
 
+		if (experiment_sample < EXPERIMENT_SAMPLES_TOTAL)
+		{
+			float ms = ST2MS(chVTGetSystemTimeX()-start_at);
+
+			commands_plot_set_graph(0);
+			commands_send_plot_points(ms, prev_servo_val);
+
+			commands_plot_set_graph(1);
+			commands_send_plot_points(ms, servo_val);
+
+			commands_plot_set_graph(2);
+			commands_send_plot_points(ms, utils_map(encoder_read_deg(), 0.0, 360.0, 0.0, 1.0));
+
+			commands_plot_set_graph(3);
+			commands_send_plot_points(ms, mc_interface_get_tot_current_directional_filtered()/mc_interface_get_configuration()->l_current_max);
+
+			commands_plot_set_graph(4);
+			commands_send_plot_points(ms, mc_interface_get_duty_cycle_now());
+				//utils_angle_difference(mc_interface_get_pid_pos_set(), mc_interface_get_pid_pos_now())
+		}
 	}
+}
+
+
+void app_ppm_start(void) {
+	commands_init_plot("ms", "Value");
+	commands_plot_add_graph("Set angle");
+	commands_plot_add_graph("PID setpoint");
+	commands_plot_add_graph("Encoder position");
+	commands_plot_add_graph("Current");
+	commands_plot_add_graph("Duty cycle");
+
+	stop_now = false;
+	chThdCreateStatic(ppm_thread_wa, sizeof(ppm_thread_wa), NORMALPRIO, ppm_thread, NULL);
 }
 
 #pragma GCC pop_options

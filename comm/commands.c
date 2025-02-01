@@ -1385,9 +1385,11 @@ void commands_process_packet(unsigned char *data, unsigned int len,
 
 	case COMM_QMLUI_ERASE:
 	case COMM_LISP_ERASE_CODE: {
+
 		if (nrf_driver_ext_nrf_running()) {
 			nrf_driver_pause(6000);
 		}
+
 
 #ifdef USE_LISPBM
 		if (packet_id == COMM_LISP_ERASE_CODE) {

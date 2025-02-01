@@ -72,7 +72,7 @@ MT6816_config_t encoder_cfg_mt6816 = {
 		&HW_SPI_DEV, // spi_dev
 		{//HARDWARE SPI CONFIG
 				NULL, HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3, SPI_BaudRatePrescaler_4 |
-				SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_DATASIZE_16BIT
+				/*SPI_CR1_CPOL | SPI_CR1_CPHA |*/ SPI_DATASIZE_16BIT
 		},
 
 		HW_SPI_GPIO_AF,
@@ -231,7 +231,7 @@ ma782_config_t encoder_cfg_ma782 = {
 		&HW_SPI_DEV, // spi_dev
 		{//HARDWARE SPI CONFIG
 				compute_ma782_callback, HW_SPI_PORT_NSS, HW_SPI_PIN_NSS, SPI_BaudRatePrescaler_32 |
-				/* SPI_CR1_CPOL * |*/  SPI_CR1_CPOL | SPI_CR1_CPHA | SPI_DATASIZE_8BIT ,
+				/* SPI_CR1_CPOL * |*/ /* SPI_CR1_CPOL | SPI_CR1_CPHA |*/ SPI_DATASIZE_8BIT ,
 		},
 		HW_SPI_GPIO_AF,
 		/*NSS*/HW_SPI_PORT_NSS, HW_SPI_PIN_NSS,

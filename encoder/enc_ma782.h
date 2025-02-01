@@ -30,7 +30,7 @@ void enc_ma782_print_status(ma782_config_t *cfg);
 
 extern ma782_config_t encoder_cfg_ma782;
 
-void enc_ma782_debug_cb(ma782_config_t *cfg);
+void enc_ma782_debug_cb(ma782_config_t *cfg, int argc, const char **argv);
 
 // Macros
 #define MA782_LAST_ANGLE(cfg)		((cfg)->state.last_enc_angle)

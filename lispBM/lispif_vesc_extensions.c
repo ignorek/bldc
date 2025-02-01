@@ -251,7 +251,7 @@ typedef struct {
 	// Arrays
 	lbm_uint copy;
 	lbm_uint mut;
-	
+
 	// Other
 	lbm_uint half_duplex;
 } vesc_syms;
@@ -346,17 +346,17 @@ static bool compare_symbol(lbm_uint sym, lbm_uint *comp) {
 			lbm_add_symbol_const("pin-adc2", comp);
 		} else if (comp == &syms_vesc.pin_ppm) {
 			lbm_add_symbol_const("pin-ppm", comp);
-		} 
+		}
 #ifdef PIN_HW_1
 		else if (comp == &syms_vesc.pin_hw_1) {
 			lbm_add_symbol_const("pin-hw-1", comp);
-		} 
+		}
 #endif
 #ifdef PIN_HW_2
 		else if (comp == &syms_vesc.pin_hw_2) {
 			lbm_add_symbol_const("pin-hw-2", comp);
-		} 
-#endif	
+		}
+#endif
 
 		else if (comp == &syms_vesc.l_current_min) {
 			lbm_add_symbol_const("l-current-min", comp);
@@ -2660,7 +2660,7 @@ static lbm_value ext_raw_adc_current(lbm_value *args, lbm_uint argn) {
 	} else {
 		scale1 = FAC_CURRENT1; scale2 = FAC_CURRENT2; scale3 = FAC_CURRENT3;
 	}
-	
+
 	if (argn == 3 && lbm_dec_as_i32(args[2]) != 0) {
 		scale1 = 1.0; scale2 = 1.0; scale3 = 1.0;
 		ofs1 = 0.0; ofs2 = 0.0; ofs3 = 0.0;
@@ -4080,7 +4080,7 @@ static void measure_inductance_task(void *arg) {
 			f_float(&v, real_measurement_current);
 			f_sym(&v, SYM_NIL);
 		}
-		
+
 		lbm_finish_flatten(&v);
 		if (lbm_unblock_ctx(a->id, &v)) {
 			ok = true;
@@ -4989,13 +4989,13 @@ static lbm_value ext_crc32(lbm_value *args, lbm_uint argn) {
  * If the new size is smaller than the current size, the array is just shrunk in
  * place without allocating a new buffer. Either delta-size or new-size must not
  * be nil.
- * 
+ *
  * Either way, the passed array is always resized mutably, with the returned
  * reference only for convenience.
  */
 static lbm_value ext_buf_resize(lbm_value *args, lbm_uint argn) {
 	LBM_CHECK_ARGN_RANGE(2, 4);
-	
+
 	bool should_copy = false;
 	if (argn > 2 && lbm_is_symbol(args[argn - 1])) {
 		lbm_uint sym = lbm_dec_sym(args[argn - 1]);
@@ -5014,21 +5014,21 @@ static lbm_value ext_buf_resize(lbm_value *args, lbm_uint argn) {
 		lbm_set_error_suspect(args[0]);
 		return ENC_SYM_TERROR;
 	}
-	
+
 	bool delta_size_passed = !lbm_is_symbol_nil(args[1]);
 	bool new_size_passed   = argn > 2 && lbm_is_number(args[2]);
-	
+
 	if (delta_size_passed && !lbm_is_number(args[1])) {
 		lbm_set_error_suspect(args[1]);
 		return ENC_SYM_TERROR;
 	}
-	
+
 	if (argn == 4 && !lbm_is_number(args[2])) {
 		// The case where argn is 3 is covered by the first check.
 		lbm_set_error_suspect(args[2]);
 		return ENC_SYM_TERROR;
 	}
-	
+
 	if (!delta_size_passed && !new_size_passed) {
 		lbm_set_error_reason(
 			"delta-size (arg 2) was nil while new-size wasn't provided (arg 3)"
@@ -5041,7 +5041,7 @@ static lbm_value ext_buf_resize(lbm_value *args, lbm_uint argn) {
 		// Should be impossible, unless it contained null pointer to header.
 		return ENC_SYM_FATAL_ERROR;
 	}
-	
+
 	uint32_t new_size;
 	{
 		int32_t new_size_signed;
@@ -5050,24 +5050,24 @@ static lbm_value ext_buf_resize(lbm_value *args, lbm_uint argn) {
 		} else {
 			new_size_signed = lbm_dec_as_i32(args[2]);
 		}
-		
+
 		if (new_size_signed < 0) {
 			return ENC_SYM_EERROR;
 		}
 		new_size = (uint32_t)new_size_signed;
 	}
-		
+
 	if (should_copy) {
 		void *buffer = lbm_malloc(new_size);
 		if (!buffer) {
 			return ENC_SYM_MERROR;
 		}
-		
+
 		memcpy(buffer, header->data, MIN(header->size, new_size));
 		if (new_size > header->size) {
 			memset(buffer + header->size, 0, new_size - header->size);
 		}
-		
+
 		lbm_value result;
 		if (!lbm_lift_array(&result, buffer, new_size)) {
 			return ENC_SYM_MERROR;
@@ -5085,7 +5085,7 @@ static lbm_value ext_buf_resize(lbm_value *args, lbm_uint argn) {
 			// We sadly can't trust the return value, as it fails if the allocation
 			// was previously a single word long. So we just throw it away.
 			lbm_memory_shrink_bytes(header->data, allocated_size);
-			
+
 			header->size = new_size;
 
 			return args[0];
@@ -5242,11 +5242,15 @@ void lispif_load_vesc_extensions(void) {
 		chThdCreateStatic(event_thread_wa, sizeof(event_thread_wa), NORMALPRIO - 2, event_thread, NULL);
 	}
 
+
+
+#if 0
 #ifdef HW_ADC_EXT_GPIO
 	palSetPadMode(HW_ADC_EXT_GPIO, HW_ADC_EXT_PIN, PAL_MODE_INPUT_ANALOG);
 #endif
 #ifdef HW_ADC_EXT2_GPIO
 	palSetPadMode(HW_ADC_EXT2_GPIO, HW_ADC_EXT2_PIN, PAL_MODE_INPUT_ANALOG);
+#endif
 #endif
 
 	lbm_add_symbol_const("hw-esc", &sym_hw_esc);

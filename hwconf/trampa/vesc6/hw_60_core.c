@@ -69,11 +69,19 @@ void hw_init_gpio(void) {
 	palSetPadMode(GPIOB, 6,
 			PAL_MODE_OUTPUT_PUSHPULL |
 			PAL_STM32_OSPEED_HIGHEST);
+#elif defined(MOSI_FIXUP)
+	palSetPadMode(GPIOC, 13,
+			PAL_MODE_OUTPUT_PUSHPULL |
+			PAL_STM32_OSPEED_HIGHEST);
 #else
 	palSetPadMode(GPIOB, 5,
 			PAL_MODE_OUTPUT_PUSHPULL |
 			PAL_STM32_OSPEED_HIGHEST);
 #endif
+
+	palSetPadMode(GPIOB, 6,
+			PAL_MODE_OUTPUT_PUSHPULL |
+			PAL_STM32_OSPEED_HIGHEST);
 
 	ENABLE_GATE();
 

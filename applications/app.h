@@ -36,6 +36,7 @@ float app_ppm_get_decoded_level(void);
 void app_ppm_detach(bool detach);
 void app_ppm_override(float val);
 void app_ppm_configure(ppm_config *conf);
+bool app_ppm_experiment_set_plot(unsigned idx, float y);
 
 void app_adc_start(bool use_rx_tx);
 void app_adc_stop(void);

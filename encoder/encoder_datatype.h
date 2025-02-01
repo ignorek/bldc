@@ -309,6 +309,7 @@ typedef enum {
 	MA782_IDLE = 0,
 	MA782_READ_REG_REQ,
 	MA782_READ_ANGLE_REQ,
+	MA782_WRITE_REG_REQ,
 } ma782_substate_t;
 
 typedef enum {
@@ -318,6 +319,7 @@ typedef enum {
 	MA782_SPI_NOT_READY    = 1 << 3,
 	MA782_ANGLE_NOT_IDLE   = 1 << 4,
 	MA782_UNKNOWN_STATE    = 1 << 5,
+	MA782_WRITE_NOT_IDLE   = 1 << 6,
 } ma782_error_t;
 
 typedef struct {
@@ -327,6 +329,7 @@ typedef struct {
 	uint32_t spi_comm_error_cnt;
 	float spi_comm_error_rate;
 	ma782_substate_t substate;
+	unsigned start;
 	unsigned error;
 	unsigned error_count;
 	unsigned spi_cnt;

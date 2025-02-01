@@ -20,6 +20,8 @@
 #ifndef HW_60_CORE_H_
 #define HW_60_CORE_H_
 
+//#define MOSI_FIXUP
+
 #ifdef HW60_IS_MK3
 #define HW_NAME					"60_MK3"
 #elif defined(HW60_IS_MK4)
@@ -55,6 +57,9 @@
 #ifdef HW60_VEDDER_FIRST_PCB
 #define ENABLE_GATE()			palSetPad(GPIOB, 6)
 #define DISABLE_GATE()			palClearPad(GPIOB, 6)
+#elif defined(MOSI_FIXUP)
+#define ENABLE_GATE()			palSetPad(GPIOC, 13)
+#define DISABLE_GATE()			palClearPad(GPIOC, 13)
 #else
 #define ENABLE_GATE()			palSetPad(GPIOB, 5)
 #define DISABLE_GATE()			palClearPad(GPIOB, 5)
@@ -336,6 +341,13 @@
 #define HW_SPI_PIN_MOSI			7
 #define HW_SPI_PORT_MISO		GPIOA
 #define HW_SPI_PIN_MISO			6
+#endif
+
+#if defined(MOSI_FIXUP)
+#undef HW_SPI_PORT_MOSI
+#undef HW_SPI_PIN_MOSI
+#define HW_SPI_PORT_MOSI		GPIOB
+#define HW_SPI_PIN_MOSI			5
 #endif
 
 // SPI for DRV8301

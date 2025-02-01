@@ -264,7 +264,7 @@ bool encoder_init(volatile mc_configuration *conf) {
 		}
 
 		m_encoder_type_now = ENCODER_TYPE_MA782;
-		timer_start(routine_rate_1);
+		timer_start(routine_rate_1k);
 
 		res = true;
 	} break;
@@ -649,7 +649,7 @@ static void terminal_debug(int argc, const char **argv) {
 	const volatile mc_configuration *mcconf = mc_interface_get_configuration();
 	switch (mcconf->m_sensor_port_mode) {
 		case SENSOR_PORT_MODE_MA782:
-			enc_ma782_debug_cb(&encoder_cfg_ma782);
+			enc_ma782_debug_cb(&encoder_cfg_ma782, argc, argv);
 			break;
 	}
 }
